@@ -83,20 +83,24 @@ The following screenshots document the key components of the project in action.
 
 **Docker Services**
 *Shows the Kafka and Zookeeper containers running.*
-![Docker Processes](screenshot/docker_ps.png)
+<img width="1697" height="120" alt="docker_ps" src="https://github.com/user-attachments/assets/8c99ede5-2e00-40e6-8659-9fa9c211f71e" />
+
 
 **Kafka Producer Logs**
 *Shows the producer successfully fetching data and publishing messages to the Kafka topic.*
-![Producer Logs](screenshot/producer_logs.png)
+<img width="1700" height="240" alt="producer_logs" src="https://github.com/user-attachments/assets/11053588-126a-430f-ad4e-5e629a13b3bf" />
+
 
 **Kafka Topic Consumer**
 *Shows a command-line consumer reading messages from the `crypto-raw` topic.*
-![Kafka Consumer](screenshot/kafka_consumer.png)
+<img width="1920" height="1200" alt="kafka_consumer" src="https://github.com/user-attachments/assets/d1680de1-837b-4fd6-b78c-8df8da1da074" />
+
 
 **Pytest Results**
 *Shows the successful execution of the unit tests for the MongoDB client.*
-![Pytest Results](screenshot/pytest.png)
+<img width="1910" height="291" alt="pytest" src="https://github.com/user-attachments/assets/aeb6bf6f-953f-4999-b3dc-e32ffb9019fb" />
+
 
 **Git History**
 *A clean, atomic commit history demonstrating a structured development process.*
-![Git Log](screenshot/git_log.png)
+<img width="1152" height="401" alt="image" src="https://github.com/user-attachments/assets/9c88558d-324f-4882-ae5e-f1c55f951e8b" />
