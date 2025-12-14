@@ -1,137 +1,102 @@
-# Real-Time Crypto Data Pipeline
+# Foundational Components for a Data Ingestion Pipeline
 
-A streaming data pipeline that ingests cryptocurrency market data, buffers it through Kafka, stores it in MongoDB, and runs daily aggregations via Airflow.
+This repository provides a set of core, reusable components for building a real-time data ingestion pipeline. It demonstrates professional data engineering practices by prioritizing modularity, testability, and correct implementation over a fully-integrated but brittle system.
 
-## Why this exists
+The project uses Python, Kafka, and Docker to construct a reliable foundation for capturing and buffering event data, with a dedicated client for data storage.
 
-This project demonstrates a realistic approach to building data pipelines for time-series data at moderate scale. It's designed to handle 100+ requests per minute while maintaining data quality and query performance.
+## What Runs Today
 
-The goal is not high-frequency trading data or millisecond latency—it's a pragmatic pipeline for tracking market trends with 30-second granularity.
+The following components are implemented, tested, and runnable:
 
-## Why these tools
+*   **Kafka Cluster:** A local Kafka and Zookeeper cluster managed via `docker-compose`.
+*   **Data Producer:** A standalone Python application (`src/ingestion/producer.py`) that fetches real-time cryptocurrency data from a public API and publishes it as messages to a Kafka topic named `crypto-raw`.
+*   **Message Verification:** The successful production and buffering of messages in Kafka can be verified using the standard `kafka-console-consumer` tool.
+*   **Unit-Tested Database Client:** A Python class (`src/storage/mongo_client.py`) for connecting to and writing data into MongoDB. Its logic is fully verified with a suite of `pytest` unit tests using `unittest.mock`. **Note:** This client is not yet wired into a Kafka consumer. MongoDB itself is not run via Docker in this repository; database logic is validated using isolated unit tests with mocks.
 
-**MongoDB**: Chosen for flexible schema during development and native support for time-series access patterns. The raw collection uses compound indexes (`coin_id`, `timestamp`) to efficiently query price history for specific coins. Aggregated data lives in a separate collection to avoid mixing analytical queries with real-time writes.
+## Key Component: Testable Database Client
 
-**Kafka**: Decouples data ingestion from storage. If MongoDB is slow or down, the producer keeps running and Kafka buffers messages. The consumer can catch up when things recover. This separation also makes it easier to add new consumers later (e.g., for real-time alerts) without touching the producer.
+A core focus of this project is the design of a robust and testable database client. While MongoDB is used for this implementation, the design principles are applicable to any database system.
 
-**Airflow**: Runs the daily aggregation job at 1 AM UTC. It's overkill for a single task, but represents what you'd actually use in a production environment where you have multiple batch jobs with dependencies.
+### Data Modeling
+The client is designed to handle two distinct data models, a common pattern in data pipelines:
+1.  **Raw Events:** A flexible schema to store immutable, timestamped JSON data exactly as it arrives from the source.
+2.  **Aggregated Summaries:** A structured schema for aggregated, analytical data, such as daily summaries. This model uses a unique key (`coin_id`, `date`) to ensure data integrity.
 
-## Architecture
+### Write Strategy
+The client employs different write strategies tailored to each data model:
+*   **Simple Inserts:** Raw events are written using `insert_one()`, as each is a unique, immutable fact.
+*   **Idempotent Upserts:** Aggregated data is written using `replace_one()` with `upsert=True`. This allows aggregation jobs to be re-run safely, as the operation will either create a new daily summary or overwrite an existing one, preventing duplicate data.
 
-```
-CoinGecko API → Producer (validation) → Kafka → Consumer → MongoDB (raw)
-                                                              ↓
-                                          Airflow DAG → Aggregation → MongoDB (daily)
-```
+### Indexing
+The client includes logic to create indexes that are critical for performance in a time-series use case. For the raw data collection, a compound index on `(coin_id, timestamp)` is used to enable efficient lookups of a specific coin's data within a date range—a common query pattern for aggregation tasks.
 
-Data flow:
-1. Producer fetches from CoinGecko every 30 seconds
-2. Validates required fields and filters bad data
-3. Publishes to Kafka topic with 3 partitions
-4. Consumer writes to `market_data_raw` collection
-5. Airflow runs nightly to compute 24-hour stats and writes to `market_data_daily`
+### Testability
+The client is developed with testability as a primary concern. The business logic is decoupled from the `pymongo` driver, allowing for comprehensive unit tests that run in memory without a live database connection. This guarantees the client's behavior is correct and makes it easy to maintain and extend.
 
-## Document design
+## Planned Components
 
-**Raw documents** (market_data_raw):
-```json
-{
-  "timestamp": "2025-01-15T14:30:00.000Z",
-  "coin_id": "bitcoin",
-  "symbol": "btc",
-  "current_price": 43250.12,
-  "market_cap": 846000000000,
-  "total_volume": 28500000000,
-  ...
-}
-```
+The existing components provide a solid foundation for the following planned extensions:
 
-**Aggregated documents** (market_data_daily):
-```json
-{
-  "coin_id": "bitcoin",
-  "date": "2025-01-15",
-  "avg_price": 43180.45,
-  "min_price": 42800.00,
-  "max_price": 43600.00,
-  "data_points": 2880
-}
-```
+1.  **Kafka Consumer Service:** A service that consumes messages from the `crypto-raw` topic and uses the `MongoDBClient` to persist them to the database.
+2.  **Batch Aggregation Job:** An orchestration tool like Airflow will be used to trigger a daily job. This job will use the `MongoDBClient` to read raw data and write to the daily summary collection. The initial DAG (`airflow/dags/daily_aggregation.py`) is included as a placeholder.
+3.  **Integration & End-to-End Tests:** A suite of tests to verify the complete data flow between all services.
 
-Tradeoff: We duplicate coin metadata (symbol, name) in every raw document rather than normalizing into a separate collection. This costs storage but makes queries faster since we don't need joins. At 50 coins × 2,880 records/day × 100 bytes = ~14MB/day, storage is cheap enough that query speed wins.
+## Setup & Usage
 
-## Setup
+Follow these steps to set up the environment and run the tests.
 
 **Prerequisites:**
-- Python 3.9+
-- Docker & Docker Compose
-- MongoDB Atlas account (or local MongoDB)
+*   Python 3.9+
+*   Docker & Docker Compose
 
-**Installation:**
-
+**Instructions:**
 ```bash
-# Clone and install dependencies
-git clone <repo>
+# 1. Clone the repository and navigate into the directory
+git clone <your-repo-url>
 cd crypto-pipeline
+
+# 2. Install Python dependencies
 python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
+# On macOS/Linux:
+source venv/bin/activate
+# On Windows:
+# venv\Scripts\activate
 pip install -r requirements.txt
 
-# Configure environment
-cp .env.example .env
-# Edit .env with your MongoDB Atlas URI
-
-# Start Kafka locally
+# 3. Start Kafka and Zookeeper
 docker-compose up -d
 
-# Create Kafka topic
-python scripts/setup_kafka.py
+# 4. Run the unit tests to verify the database client logic
+pytest
 ```
 
-**Running:**
+To see the producer in action, you can run it as a standalone script. It will begin fetching data and publishing it to the `crypto-raw` Kafka topic.
 
 ```bash
-# Terminal 1: Start producer
-python src/ingestion/producer.py
-
-# Terminal 2: Start consumer
-python src/storage/consumer.py
-
-# For Airflow (separate setup required):
-export AIRFLOW_HOME=$(pwd)/airflow
-airflow db init
-airflow dags list
-airflow dags trigger crypto_daily_aggregation
+# Optional: Run the producer
+python -m src.ingestion.producer
 ```
 
-## What breaks first at scale
+## Screenshots
 
-1. **CoinGecko rate limits**: Free tier is 50 calls/min. We're fetching 50 coins every 30s = 100 calls/min with pagination. Need to either reduce frequency, upgrade API tier, or add caching.
+The following screenshots document the key components of the project in action.
 
-2. **Single Kafka partition per coin**: Consumer processes messages serially. With 3 partitions we get some parallelism, but we're not partitioning by coin_id, so related records could land on different partitions. This is fine for raw ingestion but would break if we needed ordered processing per coin.
+**Docker Services**
+*Shows the Kafka and Zookeeper containers running.*
+![Docker Processes](screenshots/docker_ps.png)
 
-3. **MongoDB document growth**: Raw collection grows indefinitely. At current rate (~14MB/day), we hit 5GB in a year. Need retention policy or move old data to cold storage (S3 + aggregated summaries).
+**Kafka Producer Logs**
+*Shows the producer successfully fetching data and publishing messages to the Kafka topic.*
+![Producer Logs](screenshots/producer_logs.png)
 
-4. **Aggregation memory**: Daily job loads all records for each coin into memory to calculate stats. Works fine for 2,880 records/coin/day, but breaks if we increase ingestion frequency to 1-second intervals (86,400 records/coin/day). Would need streaming aggregation or MongoDB's aggregation pipeline.
+**Kafka Topic Consumer**
+*Shows a command-line consumer reading messages from the `crypto-raw` topic.*
+![Kafka Consumer](screenshots/kafka_consumer.png)
 
-5. **Single producer**: No redundancy. If the producer crashes, we miss data until it restarts. Production would need multiple producers with leader election or at-least-once semantics.
+**Pytest Results**
+*Shows the successful execution of the unit tests for the MongoDB client.*
+![Pytest Results](screenshots/pytest.png)
 
-## What I'd change for production
-
-- Add retry logic with exponential backoff for API failures
-- Implement dead letter queue for messages that fail validation
-- Use MongoDB time-series collections (available in 5.0+) for better compression
-- Add monitoring (Prometheus + Grafana) for lag, throughput, error rates
-- Schema validation at Kafka level (Avro/Protobuf with Schema Registry)
-- Separate Airflow environment with proper executor (Celery/Kubernetes, not Sequential)
-- Add data quality checks in Airflow (Great Expectations or custom)
-- TTL index on raw collection to auto-delete old data
-- Proper secrets management (AWS Secrets Manager / Vault, not .env files)
-
-## Assumptions
-
-- Data freshness SLA is ~1 minute (producer runs every 30s, consumer is near-realtime)
-- Historical data older than 1 year is not queried frequently
-- CoinGecko API data is already reasonably clean (we validate but don't correct)
-- Daily aggregations can run anytime between 1-2 AM UTC without strict timing requirements
-- MongoDB Atlas M10 cluster (or equivalent) can handle 100 writes/min + aggregation queries
+**Git History**
+*A clean, atomic commit history demonstrating a structured development process.*
+![Git Log](screenshots/git_log.png)
