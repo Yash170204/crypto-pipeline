@@ -11,8 +11,9 @@ class MongoDBClient:
     def __init__(self, uri: str, database: str):
         self.uri = uri
         self.database_name = database
-        self.client = None
-        self.db = None
+        self.client = MongoClient(self.uri, serverSelectionTimeoutMS=5000)
+        self.db = self.client[self.database_name]
+
         
     def connect(self):
         try:
