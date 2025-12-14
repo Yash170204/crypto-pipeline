@@ -83,20 +83,20 @@ The following screenshots document the key components of the project in action.
 
 **Docker Services**
 *Shows the Kafka and Zookeeper containers running.*
-![Docker Processes](screenshots/docker_ps.png)
+![Docker Processes](screenshot/docker_ps.png)
 
 **Kafka Producer Logs**
 *Shows the producer successfully fetching data and publishing messages to the Kafka topic.*
-![Producer Logs](screenshots/producer_logs.png)
+![Producer Logs](screenshot/producer_logs.png)
 
 **Kafka Topic Consumer**
 *Shows a command-line consumer reading messages from the `crypto-raw` topic.*
-![Kafka Consumer](screenshots/kafka_consumer.png)
+![Kafka Consumer](screenshot/kafka_consumer.png)
 
 **Pytest Results**
 *Shows the successful execution of the unit tests for the MongoDB client.*
-![Pytest Results](screenshots/pytest.png)
+![Pytest Results](screenshot/pytest.png)
 
 **Git History**
 *A clean, atomic commit history demonstrating a structured development process.*
-![Git Log](screenshots/git_log.png)
+![Git Log](screenshot/git_log.png)
